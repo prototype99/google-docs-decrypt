@@ -66,15 +66,9 @@ def gdoc_uncrypt(url):
             print("Error: Table does not have enough columns (expected at least 3).")
             return
             
-        # the header row is always the first row based on provided examples
-        header_row_index = 0
+        # the header row is always the first row based on provided examples, we don't need it, let's slice it
+        df = df.iloc[1:]
 
-        df.columns = df.iloc[header_row_index]
-        df = df.drop(
-            df.index[:header_row_index + 1]
-        )
-
-            
         #set column names, based on given examples order never changes
         df.columns = [
             'x',
