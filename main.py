@@ -16,5 +16,22 @@
 #
 #     2. When called, prints the grid of characters specified by the input data, displaying a graphic of correctly oriented uppercase letters.
 
+# more performant than requests
+import niquests
+ 
+def download_file(url):
+    #open up a session
+    with niquests.Session() as s:
+        #attempt a download
+        response = s.get(url)
+        #status code 200 is successful
+        #only return the text if the status code is 200
+        if response.status_code == 200:
+            return response.text
+        else:
+            print(f"Failed to download. Status code: {response.status_code}")
+            return None
+
 if __name__ == '__main__':
-    print('stub')
+    #test0
+    download_file("https://docs.google.com/document/u/0/d/e/2PACX-1vTMOmshQe8YvaRXi6gEPKKlsC6UpFJSMAk4mQjLm_u1gmHdVVTaeh7nBNFBRlui0sTZ-snGwZM4DBCT/export?format=csv")
