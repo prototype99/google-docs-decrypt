@@ -23,7 +23,18 @@ def download_file(url):
     #open up a session
     with niquests.Session() as s:
         #attempt a download
-        response = s.get(url)
+        response = s.get(
+            url
+            #this needs to be strippwd from the given test url
+            .split(
+                "/pub"
+            )
+            #this tells us to keep the left half
+            [0]
+            +
+            #lets us download the csv file
+            "/export?format=csv"
+        )
         #status code 200 is successful
         #only return the text if the status code is 200
         if response.status_code == 200:
@@ -33,5 +44,5 @@ def download_file(url):
             return None
 
 if __name__ == '__main__':
-    #test0
-    download_file("https://docs.google.com/document/u/0/d/e/2PACX-1vTMOmshQe8YvaRXi6gEPKKlsC6UpFJSMAk4mQjLm_u1gmHdVVTaeh7nBNFBRlui0sTZ-snGwZM4DBCT/export?format=csv")
+    #test using the given url
+    download_file("https://docs.google.com/document/d/e/2PACX-1vSvM5gDlNvt7npYHhp_XfsJvuntUhq184By5xO_pA4b_gCWeXb6dM6ZxwN8rE6S4ghUsCj2VKR21oEP/pub")
