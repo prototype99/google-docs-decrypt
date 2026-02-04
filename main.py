@@ -1,48 +1,131 @@
-# the software is given a Google Doc that contains a list of Unicode characters and their positions in a 2D grid. it must write a function that takes in the URL for such a Google Doc as an argument, retrieves and parse the data in the document, and prints= the grid of characters.
-#
-#     The document specifies the Unicode characters in the grid, along with the x- and y-coordinates of each character.
-#
-#     The minimum possible value of these coordinates is 0. There is no maximum possible value, so the grid can be arbitrarily large.
-#
-#     Any positions in the grid that do not have a specified character should be filled with a space character.
-#
-# Note that the coordinates (0, 0) will always correspond to the bottom left corner of the grid as in this example, so make sure to understand in which directions the x- and y-coordinates increase.
-#
-#     external libraries can be used.
-#
-#     there should be one function that:
-#
-#     1. Takes in one argument, which is a string containing the URL for the Google Doc with the input data, AND
-#
-#     2. When called, prints the grid of characters specified by the input data, displaying a graphic of correctly oriented uppercase letters.
-
-# more performant than requests
 import niquests
- 
-def download_file(url):
-    #open up a session
-    with niquests.Session() as s:
-        #attempt a download
-        response = s.get(
-            url
-            #this needs to be strippwd from the given test url
-            .split(
-                "/pub"
+import pandas as pd
+import io
+
+def gdoc_uncrypt(url):
+    """
+    Downloads a Google Doc,
+    parses the table data (x, char, y),
+    prints the resulting grid.
+    """
+    #clean url
+    if "/pub" in url:
+        #turns out /pub needs no export parameter
+        export_url = url
+    elif "/edit" in url:
+        #TODO: test this
+        #i think /edit needs the export parameter
+        export_url = url.split("/edit")[0] + "/export?format=html"
+    #even less sure about these bits, but will include them for completeness
+    elif "?" in url:
+        export_url = url + "&format=html"
+    else:
+        export_url = url + "/export?format=html"
+
+    #now the real action begins
+    try:
+        #open up a session
+        with niquests.Session() as s:
+            #attempt to download the document
+            response = s.get(
+                export_url,
+                #it's google, response should be fast
+                timeout=10
             )
-            #this tells us to keep the left half
-            [0]
-            +
-            #lets us download the csv file
-            "/export?format=csv"
+            #200 is the success code for http requests
+            if response.status_code != 200:
+                print(f"Error: Could not download document. Status code: {response.status_code}")
+                return
+            
+            html_content = response.text
+            #smol deduplication
+            html_content_lower = html_content.lower()
+            
+            #if you're being asked to log in, you're probably trying to use a private doc'
+            if "google-signin" in html_content_lower or "log in" in html_content_lower:
+                print("Error: Document is private. Please share it with 'Anyone with the link'.")
+                return
+    except Exception as e:
+        print(f"An error occurred during download: {e}")
+        return
+
+    #use the popular pandas library to parse the table data
+    try:
+        # this gets all tables in the document
+        tables = pd.read_html(io.StringIO(html_content))
+        # we only care about tables
+        if not tables:
+            print("Error: No table found in the document.")
+            return
+
+        # we only care about the first table
+        df = tables[0]
+
+        # We expect 3 columns, doc is malformed otherwise
+        if df.shape[1] < 3:
+            print("Error: Table does not have enough columns (expected at least 3).")
+            return
+            
+        # the header row is always the first row based on provided examples
+        header_row_index = 0
+
+        df.columns = df.iloc[header_row_index]
+        df = df.drop(
+            df.index[:header_row_index + 1]
         )
-        #status code 200 is successful
-        #only return the text if the status code is 200
-        if response.status_code == 200:
-            return response.text
-        else:
-            print(f"Failed to download. Status code: {response.status_code}")
-            return None
+
+            
+        #set column names, based on given examples order never changes
+        df.columns = [
+            'x',
+            'char',
+            'y'
+        ]
+
+        # Convert x & y to integers
+        df['x'] = pd.to_numeric(df['x'], errors='coerce')
+        df['y'] = pd.to_numeric(df['y'], errors='coerce')
+        df['x'] = df['x'].astype(int)
+        df['y'] = df['y'].astype(int)
+        
+    except Exception as e:
+        print(f"An error occurred during parsing: {e}")
+        return
+
+    # prepare output
+    if df.empty:
+        print("Error: No valid data found in the table.")
+        return
+
+    #size can vary
+    max_x = df['x'].max()
+    max_y = df['y'].max()
+    
+    # Initialize grid with spaces
+    # Grid is list of rows, each row is a list of characters
+    # Height is max_y + 1, Width is max_x + 1
+    grid = [[' ' for _ in range(max_x + 1)] for _ in range(max_y + 1)]
+    
+    # Fill the grid
+    for _, row in df.iterrows():
+        # Coordinates (0,0) is bottom-left.
+        # In our grid list, row 0 will be the top row, so we need to flip y
+        # top row index = max_y, bottom row index = 0
+        grid[row['y']][row['x']] = row['char']
+
+    # Since 0,0 is bottom-left, y increases UPWARDS.
+    # We should print from max_y down to 0.
+    for y in range(
+            max_y,
+            -1,
+            -1
+    ):
+        print(
+            "".join(
+                grid[y]
+            )
+        )
 
 if __name__ == '__main__':
-    #test using the given url
-    download_file("https://docs.google.com/document/d/e/2PACX-1vSvM5gDlNvt7npYHhp_XfsJvuntUhq184By5xO_pA4b_gCWeXb6dM6ZxwN8rE6S4ghUsCj2VKR21oEP/pub")
+    # Example URL from the user's file
+    gdoc_uncrypt("https://docs.google.com/document/d/e/2PACX-1vSvM5gDlNvt7npYHhp_XfsJvuntUhq184By5xO_pA4b_gCWeXb6dM6ZxwN8rE6S4ghUsCj2VKR21oEP/pub")

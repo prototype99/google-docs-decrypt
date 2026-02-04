@@ -4,5 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.14"
 dependencies = [
+    "lxml>=6.0.2",
     "niquests>=3.17.0",
+    "pandas>=3.0.0",
 ]
