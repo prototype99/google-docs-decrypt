@@ -17,10 +17,8 @@ def gdoc_uncrypt(url):
         #i think /edit needs the export parameter
         export_url = url.split("/edit")[0] + "/export?format=html"
     #even less sure about these bits, but will include them for completeness
-    elif "?" in url:
-        export_url = url + "&format=html"
     else:
-        export_url = url + "/export?format=html"
+        export_url = f"{url.rstrip('/')}/export?format=html" if "?" not in url else f"{url}&format=html"
 
     #now the real action begins
     try:
@@ -37,67 +35,48 @@ def gdoc_uncrypt(url):
                 print(f"Error: Could not download document. Status code: {response.status_code}")
                 return
             
-            html_content = response.text
-            #smol deduplication
-            html_content_lower = html_content.lower()
-            
-            #if you're being asked to log in, you're probably trying to use a private doc'
-            if "google-signin" in html_content_lower or "log in" in html_content_lower:
+            #if you're being asked to log in, you're probably trying to use a private doc
+            if any(
+                    marker in response.text.lower() for marker in [
+                        "google-signin",
+                        "log in"
+                    ]
+            ):
                 print("Error: Document is private. Please share it with 'Anyone with the link'.")
                 return
     except Exception as e:
         print(f"An error occurred during download: {e}")
         return
 
-    #use the popular pandas library to parse the table data
+    # Parse table data
     try:
-        # this gets all tables in the document
-        tables = pd.read_html(io.StringIO(html_content))
-        # we only care about tables
+        # Read the table data from the HTML
+        tables = pd.read_html(
+            io.StringIO(
+                response.text
+            )
+        )
         if not tables:
             print("Error: No table found in the document.")
             return
 
-        # we only care about the first table
-        df = tables[0]
-
-        # We expect 3 columns, doc is malformed otherwise
-        if df.shape[1] < 3:
-            print("Error: Table does not have enough columns (expected at least 3).")
-            return
-            
-        # the header row is always the first row based on provided examples, we don't need it, let's slice it
-        df = df.iloc[1:]
-
-        #set column names, based on given examples order never changes
+        #we only care about the first table & we don't need the header row
+        df = tables[0].iloc[1:]
         df.columns = [
             'x',
             'char',
             'y'
         ]
 
-        # Convert x & y to integers
-        df['x'] = pd.to_numeric(df['x'], errors='coerce')
-        df['y'] = pd.to_numeric(df['y'], errors='coerce')
-        df['x'] = df['x'].astype(int)
-        df['y'] = df['y'].astype(int)
+        # Convert coordinates to integers
+        df[['x', 'y']] = df[['x', 'y']].apply(pd.to_numeric, errors='coerce').astype(int)
         
     except Exception as e:
         print(f"An error occurred during parsing: {e}")
         return
 
-    # prepare output
-    if df.empty:
-        print("Error: No valid data found in the table.")
-        return
-
-    #size can vary
-    max_x = df['x'].max()
-    max_y = df['y'].max()
-    
-    # Initialize grid with spaces
-    # Grid is list of rows, each row is a list of characters
-    # Height is max_y + 1, Width is max_x + 1
+    # Initialize grid and fill it
+    max_x, max_y = df['x'].max(), df['y'].max()
     grid = [[' ' for _ in range(max_x + 1)] for _ in range(max_y + 1)]
     
     # Fill the grid
